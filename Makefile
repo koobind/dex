@@ -8,8 +8,17 @@ REPO_PATH=$(ORG_PATH)/$(PROJ)
 
 VERSION ?= $(shell ./scripts/git-version)
 
-DOCKER_REPO=quay.io/dexidp/dex
+DOCKER_REPO=ghcr.io/koobind/dex
 DOCKER_IMAGE=$(DOCKER_REPO):$(VERSION)
+
+# You can switch between simple (faster) docker build or multiplatform one.
+# For multiplatform build on a fresh system, do 'make docker-set-multiplatform-builder'
+#DOCKER_BUILD := docker buildx build --builder multiplatform --cache-to type=local,dest=$(BUILDX_CACHE),mode=max --cache-from type=local,src=$(BUILDX_CACHE) --platform linux/amd64,linux/arm64
+DOCKER_BUILD := docker build
+
+# Comment this to just build locally
+DOCKER_PUSH := --push
+
 
 $( shell mkdir -p bin )
 
@@ -89,9 +98,15 @@ lint: ## Run linter
 fix: ## Fix lint violations
 	golangci-lint run --fix
 
-.PHONY: docker-image
-docker-image:
-	@sudo docker build -t $(DOCKER_IMAGE) .
+#.PHONY: docker-image
+#docker-image:
+#	docker build -t $(DOCKER_IMAGE) .
+
+.PHONY: docker
+docker:  ## Build and push image
+	$(DOCKER_BUILD) ${DOCKER_PUSH} -t $(DOCKER_IMAGE)  .
+
+
 
 .PHONY: verify-proto
 verify-proto: proto
