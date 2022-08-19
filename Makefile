@@ -4,7 +4,8 @@ export PATH := $(abspath bin/protoc/bin/):$(abspath bin/):${PATH}
 
 PROJ=dex
 ORG_PATH=github.com/dexidp
-REPO_PATH=$(ORG_PATH)/$(PROJ)
+#REPO_PATH=$(ORG_PATH)/$(PROJ)
+REPO_PATH=.
 
 VERSION ?= $(shell ./scripts/git-version)
 
@@ -36,13 +37,14 @@ KIND_TMP_DIR = "$(PWD)/bin/test/dex-kind-kubeconfig"
 
 .PHONY: generate
 generate:
-	@go generate $(REPO_PATH)/storage/ent/
+	go generate $(REPO_PATH)/storage/ent/
 
 build: generate bin/dex
 
+.PHONY: bin/dex
 bin/dex:
-	@mkdir -p bin/
-	@go install -v -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/dex
+	mkdir -p bin/
+	go install -v -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/dex
 
 examples: bin/grpc-client bin/example-app
 
