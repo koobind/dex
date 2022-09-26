@@ -1,6 +1,13 @@
 #!/bin/sh -e
 # Since this script will be run in a rkt container, use "/bin/sh" instead of "/bin/bash"
 
+if [ ! -d ".git" ]
+then
+    # We are in a test/dev context.
+    echo "X.X.X"
+    exit 0
+fi
+
 # parse the current git commit hash
 COMMIT=`git rev-parse HEAD`
 

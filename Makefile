@@ -41,24 +41,32 @@ generate:
 
 build: generate bin/dex
 
+.PHONY: scripts
+scripts:
+	chmod +x ./scripts/git-diff ./scripts/git-version
+
+.PHONY: dependencies
+dependencies:
+	go get ./...
+
 .PHONY: bin/dex
-bin/dex:
+bin/dex: scripts dependencies
 	mkdir -p bin/
 	go install -v -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/dex
 
 examples: bin/grpc-client bin/example-app
 
-bin/grpc-client:
+bin/grpc-client: scripts dependencies
 	@mkdir -p bin/
 	@cd examples/ && go install -v -ldflags $(LD_FLAGS) $(REPO_PATH)/examples/grpc-client
 
-bin/example-app:
+bin/example-app: scripts dependencies
 	@mkdir -p bin/
 	@cd examples/ && go install -v -ldflags $(LD_FLAGS) $(REPO_PATH)/examples/example-app
 
 .PHONY: release-binary
 release-binary: LD_FLAGS = "-w -X main.version=$(VERSION) -extldflags \"-static\""
-release-binary: generate
+release-binary: generate scripts
 	@go build -o /go/bin/dex -v -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/dex
 	@go build -o /go/bin/docker-entrypoint -v -ldflags $(LD_FLAGS) $(REPO_PATH)/cmd/docker-entrypoint
 
