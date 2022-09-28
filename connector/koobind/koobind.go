@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"github.com/dexidp/dex/connector"
 	"github.com/dexidp/dex/pkg/log"
-	"github.com/koobind/koobind/koomgr/apis/proto"
+	proto "github.com/koobind/koobind/koomgr/apis/proto/auth/v2"
 	"net"
 	"net/http"
 	"os"
@@ -20,6 +20,7 @@ type Config struct {
 	Url                string   `json:"Url"`
 	RootCAs            []string `json:"rootCAs"`
 	InsecureSkipVerify bool     `json:"insecureSkipVerify"`
+	LoginPrompt        string   `json:"loginPrompt"`
 }
 
 type koobindConnector struct {
@@ -30,7 +31,6 @@ type koobindConnector struct {
 
 var (
 	_ connector.PasswordConnector = (*koobindConnector)(nil)
-	_ connector.RefreshConnector  = (*koobindConnector)(nil)
 )
 
 func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error) {
@@ -83,20 +83,24 @@ func newHTTPClient(rootCAs []string, insecureSkipVerify bool) (*http.Client, err
 }
 
 func (k *koobindConnector) Prompt() string {
-	k.logger.Infof("koobindConnector.Prompt()")
-	return "Koobind Login"
+	//k.logger.Infof("koobindConnector.Prompt()")
+	if k.LoginPrompt == "" {
+		return "Koobind Login"
+	} else {
+		return k.LoginPrompt
+	}
 }
 
 func (k *koobindConnector) Login(ctx context.Context, s connector.Scopes, username, password string) (identity connector.Identity, validPassword bool, err error) {
 	k.logger.Infof("koobindConnector.Login(%s, %s)", username, password)
-	body, err := json.Marshal(proto.DexLoginRequest{
+	body, err := json.Marshal(proto.LoginRequest{
 		Login:    username,
 		Password: password,
 	})
 	if err != nil {
 		return connector.Identity{}, false, fmt.Errorf("unable to marshal dexLoginRequest (login:'%s'): %w", username, err)
 	}
-	request, err := http.NewRequest("POST", k.Url+proto.DexLoginUrlPath, bytes.NewBuffer(body))
+	request, err := http.NewRequest("POST", k.Url+proto.LoginUrlPath, bytes.NewBuffer(body))
 	if err != nil {
 		return connector.Identity{}, false, fmt.Errorf("unable build http request (login:'%s'): %w", username, err)
 	}
@@ -110,33 +114,24 @@ func (k *koobindConnector) Login(ctx context.Context, s connector.Scopes, userna
 	if response.StatusCode != http.StatusOK {
 		return connector.Identity{}, false, fmt.Errorf("invalid status code from koobind server:%d", response.StatusCode)
 	}
-	dexLoginResponse := proto.DexLoginResponse{}
-	err = json.NewDecoder(response.Body).Decode(&dexLoginResponse)
+	loginResponse := proto.LoginResponse{}
+	err = json.NewDecoder(response.Body).Decode(&loginResponse)
 	if err != nil {
 		return connector.Identity{}, false, fmt.Errorf("error while decoding response from koobind server:%w", err)
 
 	}
-	return connector.Identity{
-		UserID:            dexLoginResponse.Uid,
-		Username:          dexLoginResponse.Name,
-		PreferredUsername: dexLoginResponse.CommonName,
-		Email:             dexLoginResponse.Email,
-		EmailVerified:     true,
-		Groups:            dexLoginResponse.Groups,
-		ConnectorData:     []byte(dexLoginResponse.Token),
-	}, true, nil
-}
-
-func (k *koobindConnector) Refresh(ctx context.Context, s connector.Scopes, identity connector.Identity) (connector.Identity, error) {
-	k.logger.Infof("koobindConnector.Refresh()")
-
-	return connector.Identity{
-		UserID:            "1234",
-		Username:          "Julot",
-		PreferredUsername: "Jules",
-		Email:             "jt@test.com",
-		EmailVerified:     true,
-		Groups:            []string{"grp1", "grp2"},
-		ConnectorData:     nil,
-	}, nil
+	identity = connector.Identity{
+		UserID:        loginResponse.Uid,
+		Username:      loginResponse.Username,
+		EmailVerified: loginResponse.EmailVerified,
+		Groups:        loginResponse.Groups,
+		ConnectorData: []byte(loginResponse.Token),
+	}
+	if len(loginResponse.Emails) > 0 {
+		identity.Email = loginResponse.Emails[0]
+	}
+	if len(loginResponse.CommonNames) > 0 {
+		identity.PreferredUsername = loginResponse.CommonNames[0]
+	}
+	return identity, true, nil
 }
