@@ -17,10 +17,11 @@ import (
 )
 
 type Config struct {
-	Url                string   `json:"Url"`
-	RootCAs            []string `json:"rootCAs"`
-	InsecureSkipVerify bool     `json:"insecureSkipVerify"`
-	LoginPrompt        string   `json:"loginPrompt"`
+	Url                string           `json:"Url"`
+	RootCAs            []string         `json:"rootCAs"`
+	InsecureSkipVerify bool             `json:"insecureSkipVerify"`
+	LoginPrompt        string           `json:"loginPrompt"`
+	Client             proto.AuthClient `json:"client"`
 }
 
 type koobindConnector struct {
@@ -38,6 +39,9 @@ func (c *Config) Open(id string, logger log.Logger) (connector.Connector, error)
 	conn := &koobindConnector{
 		Config: *c,
 		logger: logger,
+	}
+	if conn.Client.Id == "" || conn.Client.Secret == "" {
+		return nil, fmt.Errorf("Missing Client.Id and/or Client.Secret")
 	}
 	var err error
 	conn.httpClient, err = newHTTPClient(c.RootCAs, c.InsecureSkipVerify)
@@ -96,6 +100,7 @@ func (k *koobindConnector) Login(ctx context.Context, s connector.Scopes, userna
 	body, err := json.Marshal(proto.LoginRequest{
 		Login:    username,
 		Password: password,
+		Client:   k.Client,
 	})
 	if err != nil {
 		return connector.Identity{}, false, fmt.Errorf("unable to marshal dexLoginRequest (login:'%s'): %w", username, err)
@@ -107,6 +112,9 @@ func (k *koobindConnector) Login(ctx context.Context, s connector.Scopes, userna
 	response, err := k.httpClient.Do(request)
 	if err != nil {
 		return connector.Identity{}, false, fmt.Errorf("error while calling koobind server (login:'%s'): %w", username, err)
+	}
+	if response.StatusCode == http.StatusForbidden {
+		return connector.Identity{}, false, fmt.Errorf("Invalid client.Id/Client.Secret")
 	}
 	if response.StatusCode == http.StatusUnauthorized {
 		return connector.Identity{}, false, nil
