@@ -98,9 +98,10 @@ func (k *koobindConnector) Prompt() string {
 func (k *koobindConnector) Login(ctx context.Context, s connector.Scopes, username, password string) (identity connector.Identity, validPassword bool, err error) {
 	k.logger.Infof("koobindConnector.Login(%s, %s)", username, password)
 	body, err := json.Marshal(proto.LoginRequest{
-		Login:    username,
-		Password: password,
-		Client:   k.Client,
+		Login:         username,
+		Password:      password,
+		Client:        k.Client,
+		GenerateToken: false,
 	})
 	if err != nil {
 		return connector.Identity{}, false, fmt.Errorf("unable to marshal dexLoginRequest (login:'%s'): %w", username, err)
@@ -129,11 +130,9 @@ func (k *koobindConnector) Login(ctx context.Context, s connector.Scopes, userna
 
 	}
 	identity = connector.Identity{
-		UserID:        loginResponse.Uid,
-		Username:      loginResponse.Username,
-		EmailVerified: loginResponse.EmailVerified,
-		Groups:        loginResponse.Groups,
-		ConnectorData: []byte(loginResponse.Token),
+		UserID:   loginResponse.Uid,
+		Username: loginResponse.Username,
+		Groups:   loginResponse.Groups,
 	}
 	if len(loginResponse.Emails) > 0 {
 		identity.Email = loginResponse.Emails[0]
